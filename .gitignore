@@ -1,0 +1,12 @@
+# Archivos y carpetas sensibles
+*.pkl
+*.csv
+*.xlsx
+*.sav
+*.json
+*.zip
+__pycache__/
+.venv/
+venv/
+.env
+.DS_Store
