@@ -7,6 +7,8 @@ import pandas as pd
 import numpy as np
 import io
 import base64
+import os
+import gdown
 
 # ======================
 # CONFIGURACIÓN GENERAL
@@ -19,12 +21,29 @@ COLOR_BORDE = "#E8EEF5"
 # ======================================================
 # 📂 CARGA DE DATOS
 # ======================================================
+
 @st.cache_data(show_spinner=False)
 def cargar_datos():
-    df = pd.read_pickle("data\processed (data limpia, lista para análisis)\df_seguro.pkl")
+    ruta_archivo = os.path.join("data", "processed (data limpia, lista para análisis)", "df_seguro.pkl")
+
+    # Si no existe, lo descarga automáticamente
+    if not os.path.exists(ruta_archivo):
+        st.warning("Descargando datos desde Google Drive... por favor espera ⏳")
+        os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
+
+        # 🔗 ID del archivo en Google Drive
+        file_id = "1F6XB759srLuTmF1xB4uhKnrVwGQEbTD4"
+        url = f"https://drive.google.com/uc?id={file_id}"
+        gdown.download(url, ruta_archivo, quiet=False)
+
+    # 📦 Carga el archivo una vez descargado
+    df = pd.read_pickle(ruta_archivo)
+
+    # 🧹 Limpieza ligera
     df["CATEGORIA"] = df["CATEGORIA"].str.upper().str.strip()
     if not pd.api.types.is_datetime64_any_dtype(df["FECHA_REGISTRO_ATENCION"]):
         df["FECHA_REGISTRO_ATENCION"] = pd.to_datetime(df["FECHA_REGISTRO_ATENCION"], errors="coerce")
+
     return df
 
 df = cargar_datos()
