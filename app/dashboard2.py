@@ -23,7 +23,7 @@ COLOR_BORDE = "#E8EEF5"
 # ======================================================
 @st.cache_data(show_spinner=True)
 def cargar_datos():
-    ruta_archivo = os.path.join("data", "processed (data limpia, lista para análisis)", "df_seguro.csv.gz")
+    ruta_archivo = os.path.join("data", "processed", "df_seguro.csv.gz")
 
     # ✅ Spinner elegante (sin mensajes molestos)
     if not os.path.exists(ruta_archivo):
