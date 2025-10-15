@@ -133,20 +133,23 @@ df_periodo["ALERTA"] = df_periodo.apply(marcar_alerta, axis=1).astype(str)
 df_rojo = df_periodo[df_periodo["ALERTA"].str.contains("no válida", case=False, na=False)].copy()
 
 # ======================================================
-# 📢 RESUMEN DE VALIDACIÓN (Ahora aparece primero)
+# 📢 RESUMEN DE VALIDACIÓN (coherente con la tabla)
 # ======================================================
 if len(df_periodo) > 0:
     total_visitas = len(df_periodo)
     porcentaje_fuera = round((len(df_rojo) / total_visitas * 100), 1)
 
-    # Ranking preliminar para vincular niveles de riesgo
+    # Ranking preliminar
     den = df_periodo.groupby("GEL").size().rename("total")
     num = df_rojo.groupby("GEL").size().rename("no_valida")
     resumen = pd.concat([den, num], axis=1).fillna(0)
     resumen["%"] = (resumen["no_valida"] / resumen["total"] * 100).round(1)
     resumen["no_valida"] = resumen["no_valida"].astype(int)
     resumen["total"] = resumen["total"].astype(int)
-    ranking_tmp = resumen.reset_index()
+
+    # 🔧 Solo gestores con ≥5 visitas (mismo filtro que la tabla)
+    ranking_tmp = resumen[resumen["total"] >= 5].reset_index()
+
     ranking_tmp["nivel"] = ranking_tmp["%"].apply(
         lambda v: "critico" if v >= 70 else "alto" if v >= 50 else "medio" if v >= 30 else "bajo"
     )
@@ -155,6 +158,7 @@ if len(df_periodo) > 0:
     gestores_alto = ranking_tmp[ranking_tmp["nivel"] == "alto"]
     gestores_medio = ranking_tmp[ranking_tmp["nivel"] == "medio"]
 
+    # Lugar contextual
     if ut_sel == "-- Todas --":
         lugar = "en el programa"
     elif dist_sel == "-- Todos --":
@@ -167,6 +171,7 @@ if len(df_periodo) > 0:
     (urbano > 0.5 km, andino > 2 km, amazónico > 5 km).
     """
 
+    # Clasificación de riesgo
     if len(gestores_critico) > 0:
         texto_riesgo = f"🔴 **{len(gestores_critico)} gestores locales** registran más del **70 %** de sus visitas fuera del rango permitido (**riesgo crítico**)."
         color_fondo = "#FDEDEC"; color_borde = "#E74C3C"
@@ -182,6 +187,7 @@ if len(df_periodo) > 0:
 
     texto_final = f"📊 *Basado en {total_visitas:,} visitas priorizadas (niveles 4 y 5).*"
 
+    # 💬 Tarjeta visual idéntica al diseño original
     st.markdown(f"""
     <div style='background:{color_fondo};border-left:6px solid {color_borde};
                 border-radius:10px;padding:18px 20px;margin-top:10px;
@@ -195,7 +201,7 @@ if len(df_periodo) > 0:
     """, unsafe_allow_html=True)
 else:
     st.info("No se registran visitas durante el periodo seleccionado.")
-
+    
 # ======================================================
 # 🎯 TARJETAS KPI (actualizado)
 # ======================================================
