@@ -8,6 +8,7 @@ import numpy as np
 import io
 import base64
 import os
+import gdown
 
 # ======================
 # CONFIGURACIÓN GENERAL
@@ -61,7 +62,7 @@ PERIODOS = {
 # ======================================================
 st.markdown(f"""
 <h1 style="text-align:center;color:{COLOR_PRINCIPAL};margin-bottom:6px;">
-Verificación Geográfica de Visitas Domiciliarias – UCC
+Verificación Geográfica de Visitas Domiciliarias (prioridad 4 y 5)
 </h1>
 <p style="text-align:center;color:gray;margin-top:0;">
 <b>Herramienta de validación geográfica</b> de las visitas domiciliarias para fortalecer la verificación territorial.
@@ -143,6 +144,8 @@ if len(df_periodo) > 0:
     num = df_rojo.groupby("GEL").size().rename("no_valida")
     resumen = pd.concat([den, num], axis=1).fillna(0)
     resumen["%"] = (resumen["no_valida"] / resumen["total"] * 100).round(1)
+    resumen["no_valida"] = resumen["no_valida"].astype(int)
+    resumen["total"] = resumen["total"].astype(int)
     ranking_tmp = resumen.reset_index()
     ranking_tmp["nivel"] = ranking_tmp["%"].apply(
         lambda v: "critico" if v >= 70 else "alto" if v >= 50 else "medio" if v >= 30 else "bajo"
@@ -194,15 +197,17 @@ else:
     st.info("No se registran visitas durante el periodo seleccionado.")
 
 # ======================================================
-# 🎯 TARJETAS KPI
+# 🎯 TARJETAS KPI (actualizado)
 # ======================================================
 st.markdown("---")
 st.subheader("📍 Indicadores principales")
 
+# Totales base
 total_no_valida = len(df_rojo)
-gestores_involucrados = df_rojo["GEL"].nunique()
-hogares_afectados = df_rojo["CO_HOGAR"].nunique()
+total_valida = len(df_periodo) - total_no_valida
+gestores_evaluados = df_periodo["GEL"].nunique()
 
+# Estilo uniforme
 kpi_style = f"""
 background:linear-gradient(180deg,#F4F6F7,#E8EEF5);
 border-left:6px solid {COLOR_PRINCIPAL};
@@ -210,20 +215,24 @@ padding:14px 16px;border-radius:10px;
 text-align:center;line-height:1.3;
 """
 
-def kpi_html(icono, texto, valor):
+def kpi_html(icono, texto, valor, color_icono):
     return f"""
     <div style='{kpi_style}'>
-        {icono}<br>
+        <span style='font-size:26px;'>{icono}</span><br>
         <span style='font-size:16px;color:#555;'>{texto}</span><br>
-        <span style='font-size:40px;font-weight:700;color:#2E4053;'>{valor:,}</span>
+        <span style='font-size:38px;font-weight:700;color:{color_icono};'>{valor:,}</span>
     </div>
     """
 
+# Distribución de columnas
 c1, c2, c3 = st.columns(3)
-with c1: st.markdown(kpi_html("🔴", "Visitas con ubicación no válida", total_no_valida), unsafe_allow_html=True)
-with c2: st.markdown(kpi_html("👤", "Gestores con registros no válidos", gestores_involucrados), unsafe_allow_html=True)
-with c3: st.markdown(kpi_html("🏠", "Hogares con ubicación no válida", hogares_afectados), unsafe_allow_html=True)
-
+with c1:
+    st.markdown(kpi_html("🔴", "Visitas con ubicación no válida", total_no_valida, "#C0392B"), unsafe_allow_html=True)
+with c2:
+    st.markdown(kpi_html("🟢", "Visitas con ubicación válida", total_valida, "#1E8449"), unsafe_allow_html=True)
+with c3:
+    st.markdown(kpi_html("👥", "Gestores evaluados (niveles 4 y 5)", gestores_evaluados, "#2E4053"), unsafe_allow_html=True)
+    
 # ======================================================
 # 👥 GESTORES CON MAYOR INCIDENCIA
 # ======================================================
@@ -236,6 +245,10 @@ if len(df_periodo) > 0:
     num = df_rojo.groupby("GEL").size().rename("no_valida")
     resumen = pd.concat([den, num], axis=1).fillna(0)
     resumen["%"] = (resumen["no_valida"] / resumen["total"] * 100).round(1)
+
+    # 🔧 Asegurar valores enteros (sin decimales)
+    resumen["no_valida"] = resumen["no_valida"].astype(int)
+    resumen["total"] = resumen["total"].astype(int)
 
     ut_modal = df_periodo.groupby("GEL")["UT"].agg(lambda x: x.mode().iat[0] if not x.mode().empty else "")
     dist_modal = df_periodo.groupby("GEL")["DISTRITO"].agg(lambda x: x.mode().iat[0] if not x.mode().empty else "")
@@ -270,17 +283,20 @@ if len(df_periodo) > 0:
         elif pct >= 30: return ['background-color: #FCF3CF'] * len(row)
         else: return ['background-color: #E8F8F5'] * len(row)
 
+    # 🧩 Aplicar formato visual limpio (sin decimales en totales)
     st.dataframe(
         ranking[["Gestor Local", "UT", "Distrito",
                 "Total visitas (pri 4-5)",
                 "Visitas fuera de ubicación", "% fuera de ubicación"]]
-        .style.apply(color_fila, axis=1),
+        .style.apply(color_fila, axis=1)
+        .format({"Total visitas (pri 4-5)": "{:,.0f}",
+                 "Visitas fuera de ubicación": "{:,.0f}"}),
         use_container_width=True
     )
 else:
     ranking = pd.DataFrame()
     st.info("No hay registros disponibles para el periodo seleccionado.")
-
+    
 # ======================================================
 # 🏠 REGISTROS DE VISITAS
 # ======================================================
@@ -351,8 +367,16 @@ else:
     )
 
 # ======================================================
-# 💾 EXPORTACIÓN EXCEL
+# 🔁 Variables para exportación (coherentes con las tarjetas actuales)
 # ======================================================
+total_no_valida = len(df_rojo)
+total_valida = len(df_periodo) - total_no_valida
+gestores_evaluados = df_periodo["GEL"].nunique()
+
+# ======================================================
+# 💾 EXPORTACIÓN Y DESCARGA EN EXCEL (único botón)
+# ======================================================
+
 towrite = io.BytesIO()
 with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
     cols_listado = [
@@ -363,21 +387,26 @@ with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
     df_out = df_rojo[cols_listado].copy()
     df_out.to_excel(writer, index=False, sheet_name="Casos_Criticos")
 
+    # 📘 Resumen (coherente con las tarjetas actuales)
     resumen = pd.DataFrame({
         "Indicador": [
-            "Periodo", "Fecha inicio", "Fecha fin",
-            "Visitas con ubicación no válida", "Gestores con registros no válidos",
-            "Hogares con ubicación no válida"
+            "Periodo operativo", "Fecha inicio", "Fecha fin",
+            "Visitas con ubicación no válida",
+            "Visitas con ubicación válida",
+            "Total de gestores evaluados"
         ],
         "Valor": [
             periodo_sel,
             fecha_inicio.strftime("%d/%m/%Y"),
             fecha_fin.strftime("%d/%m/%Y"),
-            total_no_valida, gestores_involucrados, hogares_afectados
+            total_no_valida,
+            total_valida,
+            gestores_evaluados
         ]
     })
     resumen.to_excel(writer, index=False, sheet_name="Resumen")
 
+    # 📙 Ranking de gestores
     (ranking if not ranking.empty else pd.DataFrame(
         columns=["Gestor Local","UT","Distrito",
                  "Total visitas (pri 4-5)",
@@ -385,16 +414,18 @@ with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
     ).to_excel(writer, index=False, sheet_name="Ranking_Gestores")
 
 towrite.seek(0)
-b64 = base64.b64encode(towrite.read()).decode()
-file_name = f"verificacion_geografica_{periodo_sel}.xlsx"
+b64_excel = base64.b64encode(towrite.read()).decode()
+file_name_excel = f"verificacion_geografica_{periodo_sel}.xlsx"
 
+# --- 📊 Botón de descarga
 st.markdown(
     f"""
-    <div style='text-align:center;margin-top:15px;'>
-        <a href="data:application/octet-stream;base64,{b64}" download="{file_name}"
-        style='background-color:{COLOR_PRINCIPAL};color:white;padding:10px 20px;
-        border-radius:8px;text-decoration:none;font-weight:600;'>
-        📥 Descargar reporte operativo (3 hojas)
+    <div style='text-align:center;margin-top:15px;margin-bottom:30px;'>
+        <a href="data:application/octet-stream;base64,{b64_excel}" download="{file_name_excel}"
+        style='background-color:#004C97;color:white;padding:12px 25px;
+        border-radius:8px;text-decoration:none;font-weight:600;
+        font-size:15px;display:inline-block;'>
+        📊 Descargar reporte operativo (3 hojas)
         </a>
     </div>
     """,
