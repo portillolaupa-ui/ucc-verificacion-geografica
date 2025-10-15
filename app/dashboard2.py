@@ -1,5 +1,5 @@
 # ======================================================
-# 📊 Verificación Geográfica de Visitas Domiciliarias – UCC (v8.2)
+# 📊 Verificación Geográfica de Visitas Domiciliarias – UCC (v8.4)
 # ======================================================
 
 import streamlit as st
@@ -21,32 +21,24 @@ COLOR_BORDE = "#E8EEF5"
 # ======================================================
 # 📂 CARGA DE DATOS
 # ======================================================
-
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=True)
 def cargar_datos():
-    # Ruta local donde se guardará el archivo
     ruta_archivo = os.path.join("data", "processed (data limpia, lista para análisis)", "df_seguro.csv.gz")
 
-    # Si no existe localmente, lo descarga desde Google Drive
+    # ✅ Spinner elegante (sin mensajes molestos)
     if not os.path.exists(ruta_archivo):
-        st.warning("Descargando datos desde Google Drive... por favor espera ⏳")
-        os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
+        with st.spinner("Descargando y preparando los datos operativos..."):
+            os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
+            file_id = "1WRIMoI4bHGfFMM616OpGvfvLTMWX59IT"
+            url = f"https://drive.google.com/uc?id={file_id}"
+            gdown.download(url, ruta_archivo, quiet=False)
 
-        # ID del archivo en Google Drive
-        file_id = "1WRIMoI4bHGfFMM616OpGvfvLTMWX59IT"
-        url = f"https://drive.google.com/uc?id={file_id}"
-        gdown.download(url, ruta_archivo, quiet=False)
-
-    # Carga del CSV comprimido
-    st.info("Cargando el dataset comprimido...")
     df = pd.read_csv(ruta_archivo, compression="gzip")
 
-    # Limpieza ligera
     df["CATEGORIA"] = df["CATEGORIA"].str.upper().str.strip()
     if not pd.api.types.is_datetime64_any_dtype(df["FECHA_REGISTRO_ATENCION"]):
         df["FECHA_REGISTRO_ATENCION"] = pd.to_datetime(df["FECHA_REGISTRO_ATENCION"], errors="coerce")
 
-    st.success("✅ Datos cargados correctamente.")
     return df
 
 df = cargar_datos()
@@ -83,8 +75,15 @@ with colf1:
     periodo_sel = st.selectbox("📆 Periodo operativo", ["-- Selecciona --"] + list(PERIODOS.keys()))
 with colf2:
     ut_sel = st.selectbox("🏙️ Unidad Territorial (UT)", ["-- Todas --"] + sorted(df["UT"].unique()))
+
+# ✅ Filtro dinámico de distritos según la UT seleccionada
+if ut_sel != "-- Todas --":
+    distritos_filtrados = sorted(df[df["UT"] == ut_sel]["DISTRITO"].unique())
+else:
+    distritos_filtrados = sorted(df["DISTRITO"].unique())
+
 with colf3:
-    dist_sel = st.selectbox("📍 Distrito", ["-- Todos --"] + sorted(df["DISTRITO"].unique()))
+    dist_sel = st.selectbox("📍 Distrito", ["-- Todos --"] + distritos_filtrados)
 
 if periodo_sel == "-- Selecciona --":
     st.info("Selecciona un periodo operativo para visualizar los resultados.")
@@ -130,27 +129,81 @@ def marcar_alerta(row):
     except Exception:
         return "❌ Error de datos"
 
-# Convertimos la distancia a número
 df_periodo["DISTANCIA_KM"] = pd.to_numeric(df_periodo["DISTANCIA_KM"], errors="coerce")
-
-# Aplicamos la función de validación
-df_periodo["ALERTA"] = df_periodo.apply(marcar_alerta, axis=1)
-
-# 🔧 Forzamos a texto (esto elimina el error de .str)
-df_periodo["ALERTA"] = df_periodo["ALERTA"].astype(str)
-
-# Filtramos solo las visitas con ubicación no válida
+df_periodo["ALERTA"] = df_periodo.apply(marcar_alerta, axis=1).astype(str)
 df_rojo = df_periodo[df_periodo["ALERTA"].str.contains("no válida", case=False, na=False)].copy()
 
 # ======================================================
-# 📊 INDICADORES PRINCIPALES
+# 📢 RESUMEN DE VALIDACIÓN (Ahora aparece primero)
 # ======================================================
+if len(df_periodo) > 0:
+    total_visitas = len(df_periodo)
+    porcentaje_fuera = round((len(df_rojo) / total_visitas * 100), 1)
+
+    # Ranking preliminar para vincular niveles de riesgo
+    den = df_periodo.groupby("GEL").size().rename("total")
+    num = df_rojo.groupby("GEL").size().rename("no_valida")
+    resumen = pd.concat([den, num], axis=1).fillna(0)
+    resumen["%"] = (resumen["no_valida"] / resumen["total"] * 100).round(1)
+    ranking_tmp = resumen.reset_index()
+    ranking_tmp["nivel"] = ranking_tmp["%"].apply(
+        lambda v: "critico" if v >= 70 else "alto" if v >= 50 else "medio" if v >= 30 else "bajo"
+    )
+
+    gestores_critico = ranking_tmp[ranking_tmp["nivel"] == "critico"]
+    gestores_alto = ranking_tmp[ranking_tmp["nivel"] == "alto"]
+    gestores_medio = ranking_tmp[ranking_tmp["nivel"] == "medio"]
+
+    if ut_sel == "-- Todas --":
+        lugar = "en el programa"
+    elif dist_sel == "-- Todos --":
+        lugar = f"en la UT {ut_sel}"
+    else:
+        lugar = f"en el distrito de {dist_sel} (UT {ut_sel})"
+
+    texto_base = f"""
+    En el periodo **{periodo_sel.replace('_', ' ')}**, el **{porcentaje_fuera:.1f}%** de las visitas domiciliarias registradas {lugar} se realizaron **fuera del rango territorial permitido**  
+    (urbano > 0.5 km, andino > 2 km, amazónico > 5 km).
+    """
+
+    if len(gestores_critico) > 0:
+        texto_riesgo = f"🔴 **{len(gestores_critico)} gestores locales** registran más del **70 %** de sus visitas fuera del rango permitido (**riesgo crítico**)."
+        color_fondo = "#FDEDEC"; color_borde = "#E74C3C"
+    elif len(gestores_alto) > 0:
+        texto_riesgo = f"🟠 **{len(gestores_alto)} gestores locales** presentan entre **50 % y 70 %** (**riesgo alto**)."
+        color_fondo = "#FEF5E7"; color_borde = "#F39C12"
+    elif len(gestores_medio) > 0:
+        texto_riesgo = f"🟡 **{len(gestores_medio)} gestores locales** tienen entre **30 % y 50 %** (**riesgo medio**)."
+        color_fondo = "#FCF3CF"; color_borde = "#F1C40F"
+    else:
+        texto_riesgo = "🟢 No se registran gestores con niveles altos o críticos. La mayoría presenta un **nivel de riesgo bajo**."
+        color_fondo = "#E8F8F5"; color_borde = "#1ABC9C"
+
+    texto_final = f"📊 *Basado en {total_visitas:,} visitas priorizadas (niveles 4 y 5).*"
+
+    st.markdown(f"""
+    <div style='background:{color_fondo};border-left:6px solid {color_borde};
+                border-radius:10px;padding:18px 20px;margin-top:10px;
+                font-size:16px;line-height:1.6;color:#1B2631;'>
+        <b>📢 Resumen de validación territorial</b><br>
+        <span style='font-size:14px;color:gray;'>Periodo: {periodo_sel.replace('_',' ')} | {lugar}</span><br><br>
+        {texto_base}<br><br>
+        {texto_riesgo}<br><br>
+        <em style='color:gray;'>{texto_final}</em>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.info("No se registran visitas durante el periodo seleccionado.")
+
+# ======================================================
+# 🎯 TARJETAS KPI
+# ======================================================
+st.markdown("---")
+st.subheader("📍 Indicadores principales")
+
 total_no_valida = len(df_rojo)
 gestores_involucrados = df_rojo["GEL"].nunique()
 hogares_afectados = df_rojo["CO_HOGAR"].nunique()
-
-st.markdown("---")
-st.subheader("📍 Indicadores principales")
 
 kpi_style = f"""
 background:linear-gradient(180deg,#F4F6F7,#E8EEF5);
@@ -186,11 +239,9 @@ if len(df_periodo) > 0:
     resumen = pd.concat([den, num], axis=1).fillna(0)
     resumen["%"] = (resumen["no_valida"] / resumen["total"] * 100).round(1)
 
-    # Agregar UT y distrito modal
     ut_modal = df_periodo.groupby("GEL")["UT"].agg(lambda x: x.mode().iat[0] if not x.mode().empty else "")
     dist_modal = df_periodo.groupby("GEL")["DISTRITO"].agg(lambda x: x.mode().iat[0] if not x.mode().empty else "")
     resumen = resumen.join(ut_modal, on="GEL").join(dist_modal, on="GEL")
-
     resumen = resumen[resumen["total"] >= 5].sort_values(by=["%", "no_valida"], ascending=[False, False]).reset_index()
 
     ranking = resumen.rename(columns={
@@ -202,9 +253,9 @@ if len(df_periodo) > 0:
         "%": "% fuera de ubicación"
     })
 
-    # Corrección de tipo (evita decimales)
-    ranking["Visitas fuera de ubicación"] = ranking["Visitas fuera de ubicación"].astype(int)
-    ranking["Total visitas (pri 4-5)"] = ranking["Total visitas (pri 4-5)"].astype(int)
+    ranking["nivel"] = ranking["% fuera de ubicación"].apply(
+        lambda v: "critico" if v >= 70 else "alto" if v >= 50 else "medio" if v >= 30 else "bajo"
+    )
 
     def color_riesgo(val):
         if val >= 70: return f"🔴 {val:.1f}"
@@ -223,12 +274,13 @@ if len(df_periodo) > 0:
 
     st.dataframe(
         ranking[["Gestor Local", "UT", "Distrito",
-                 "Total visitas (pri 4-5)",
-                 "Visitas fuera de ubicación", "% fuera de ubicación"]]
+                "Total visitas (pri 4-5)",
+                "Visitas fuera de ubicación", "% fuera de ubicación"]]
         .style.apply(color_fila, axis=1),
         use_container_width=True
     )
 else:
+    ranking = pd.DataFrame()
     st.info("No hay registros disponibles para el periodo seleccionado.")
 
 # ======================================================
@@ -242,8 +294,17 @@ if df_rojo.empty:
     st.info("No se registran visitas con ubicación no válida en el periodo seleccionado.")
 else:
     colf1, colf2 = st.columns([1.2, 1])
+
+    # ✅ Filtro dinámico de gestores según UT/Distrito seleccionado
+    if ut_sel != "-- Todas --":
+        gestores_filtrados = sorted(df_rojo[df_rojo["UT"] == ut_sel]["GEL"].unique())
+    elif dist_sel != "-- Todos --":
+        gestores_filtrados = sorted(df_rojo[df_rojo["DISTRITO"] == dist_sel]["GEL"].unique())
+    else:
+        gestores_filtrados = sorted(df_rojo["GEL"].unique())
+
     with colf1:
-        gestor_filter = st.selectbox("👤 Filtrar por Gestor Local", ["-- Todos --"] + sorted(df_rojo["GEL"].unique()))
+        gestor_filter = st.selectbox("👤 Filtrar por Gestor Local", ["-- Todos --"] + gestores_filtrados)
     with colf2:
         hogar_filter = st.text_input("🏠 Buscar por Código de Hogar:")
 
@@ -252,7 +313,7 @@ else:
     if gestor_filter != "-- Todos --":
         df_filtrado = df_filtrado[df_filtrado["GEL"] == gestor_filter]
     if hogar_filter:
-        df_filtrado = df_filtrado[df_filtrado["CO_HOGAR"].str.contains(hogar_filter.strip(), case=False)]
+        df_filtrado = df_filtrado[df_filtrado["CO_HOGAR"].astype(str).str.contains(hogar_filter.strip(), case=False, na=False)]
 
     df_vista = df_filtrado[[
         "CO_HOGAR", "GEL", "DISTRITO", "CENTRO_POBLADO",
@@ -261,9 +322,13 @@ else:
     ]].sort_values(by="DISTANCIA_KM", ascending=False)
 
     def color_dist(val):
-        if val >= 10: return "color:#B03A2E;font-weight:700;"
-        elif val >= 5: return "color:#D68910;font-weight:600;"
-        elif val >= 2: return "color:#CA6F1E;"
+        try:
+            v = float(val)
+        except Exception:
+            return ""
+        if v >= 10: return "color:#B03A2E;font-weight:700;"
+        elif v >= 5: return "color:#D68910;font-weight:600;"
+        elif v >= 2: return "color:#CA6F1E;"
         else: return "color:#196F3D;"
 
     st.dataframe(
@@ -280,7 +345,7 @@ else:
         })
         .style.format({
             "Distancia (km)": "{:.2f}",
-            "Fecha": lambda x: x.strftime("%d/%m/%Y")
+            "Fecha": lambda x: x.strftime("%d/%m/%Y") if pd.notnull(x) else ""
         })
         .applymap(color_dist, subset=["Distancia (km)"]),
         use_container_width=True,
@@ -315,7 +380,11 @@ with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
     })
     resumen.to_excel(writer, index=False, sheet_name="Resumen")
 
-    ranking.to_excel(writer, index=False, sheet_name="Ranking_Gestores")
+    (ranking if not ranking.empty else pd.DataFrame(
+        columns=["Gestor Local","UT","Distrito",
+                 "Total visitas (pri 4-5)",
+                 "Visitas fuera de ubicación","% fuera de ubicación"])
+    ).to_excel(writer, index=False, sheet_name="Ranking_Gestores")
 
 towrite.seek(0)
 b64 = base64.b64encode(towrite.read()).decode()
