@@ -19,19 +19,20 @@ COLOR_PRINCIPAL = "#004C97"
 COLOR_BORDE = "#E8EEF5"
 
 # ======================================================
-# 📂 CARGA DE DATOS
+# 📂 CARGA DE DATOS (sin dependencias externas)
 # ======================================================
 @st.cache_data(show_spinner=True)
 def cargar_datos():
-    ruta_archivo = "df_seguro.csv.gz"
+    ruta_archivo = os.path.join("data", "processed", "df_seguro.csv.gz")
 
     if not os.path.exists(ruta_archivo):
-        st.error("❌ No se encontró el archivo df_seguro.csv.gz en el repositorio.")
+        st.error("❌ No se encontró el archivo 'df_seguro.csv.gz' en la carpeta 'data/processed'.")
         st.stop()
 
     with st.spinner("Cargando datos, por favor espera..."):
         df = pd.read_csv(ruta_archivo, compression="gzip")
 
+    # Limpieza básica
     df["CATEGORIA"] = df["CATEGORIA"].str.upper().str.strip()
     if not pd.api.types.is_datetime64_any_dtype(df["FECHA_REGISTRO_ATENCION"]):
         df["FECHA_REGISTRO_ATENCION"] = pd.to_datetime(df["FECHA_REGISTRO_ATENCION"], errors="coerce")
