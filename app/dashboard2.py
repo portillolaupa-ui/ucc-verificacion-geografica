@@ -24,26 +24,29 @@ COLOR_BORDE = "#E8EEF5"
 
 @st.cache_data(show_spinner=False)
 def cargar_datos():
-    ruta_archivo = os.path.join("data", "processed (data limpia, lista para análisis)", "df_seguro.pkl")
+    # Ruta local donde se guardará el archivo
+    ruta_archivo = os.path.join("data", "processed (data limpia, lista para análisis)", "df_seguro.csv.gz")
 
-    # Si no existe, lo descarga automáticamente
+    # Si no existe localmente, lo descarga desde Google Drive
     if not os.path.exists(ruta_archivo):
         st.warning("Descargando datos desde Google Drive... por favor espera ⏳")
         os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
 
-        # 🔗 ID del archivo en Google Drive
-        file_id = "1F6XB759srLuTmF1xB4uhKnrVwGQEbTD4"
+        # ID del archivo en Google Drive
+        file_id = "1WRIMoI4bHGfFMM616OpGvfvLTMWX59IT"
         url = f"https://drive.google.com/uc?id={file_id}"
         gdown.download(url, ruta_archivo, quiet=False)
 
-    # 📦 Carga el archivo una vez descargado
-    df = pd.read_pickle(ruta_archivo)
+    # Carga del CSV comprimido
+    st.info("Cargando el dataset comprimido...")
+    df = pd.read_csv(ruta_archivo, compression="gzip")
 
-    # 🧹 Limpieza ligera
+    # Limpieza ligera
     df["CATEGORIA"] = df["CATEGORIA"].str.upper().str.strip()
     if not pd.api.types.is_datetime64_any_dtype(df["FECHA_REGISTRO_ATENCION"]):
         df["FECHA_REGISTRO_ATENCION"] = pd.to_datetime(df["FECHA_REGISTRO_ATENCION"], errors="coerce")
 
+    st.success("✅ Datos cargados correctamente.")
     return df
 
 df = cargar_datos()
