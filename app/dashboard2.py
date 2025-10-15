@@ -301,69 +301,67 @@ else:
 # 🏠 REGISTROS DE VISITAS
 # ======================================================
 st.markdown("---")
-st.subheader("🏠 Registros de visitas con ubicación no válida")
-st.caption("ℹ️ Permite revisar y filtrar los registros específicos de hogares con visitas fuera del rango permitido, para prioridad 4 y 5.")
+st.subheader("🏠 Registros de visitas domiciliarias")
+st.caption("ℹ️ Incluye todas las visitas (válidas y no válidas) de prioridad 4 y 5, con opción para filtrar los casos fuera de ubicación.")
 
-if df_rojo.empty:
-    st.info("No se registran visitas con ubicación no válida en el periodo seleccionado.")
+if df_periodo.empty:
+    st.info("No se registran visitas en el periodo seleccionado.")
 else:
-    colf1, colf2 = st.columns([1.2, 1])
-
-    # ✅ Filtro dinámico de gestores según UT/Distrito seleccionado
-    if ut_sel != "-- Todas --":
-        gestores_filtrados = sorted(df_rojo[df_rojo["UT"] == ut_sel]["GEL"].unique())
-    elif dist_sel != "-- Todos --":
-        gestores_filtrados = sorted(df_rojo[df_rojo["DISTRITO"] == dist_sel]["GEL"].unique())
-    else:
-        gestores_filtrados = sorted(df_rojo["GEL"].unique())
-
+    # ✅ Filtro tipo selectbox: todas / válidas / no válidas
+    colf1, colf2, colf3 = st.columns([1.1, 1.1, 1])
     with colf1:
-        gestor_filter = st.selectbox("👤 Filtrar por Gestor Local", ["-- Todos --"] + gestores_filtrados)
+        filtro_alerta = st.selectbox("📍 Tipo de visita", ["Todas", "Ubicación válida", "Ubicación no válida"])
     with colf2:
+        gestor_filter = st.selectbox("👤 Filtrar por Gestor Local", ["-- Todos --"] + sorted(df_periodo["GEL"].unique()))
+    with colf3:
         hogar_filter = st.text_input("🏠 Buscar por Código de Hogar:")
 
-    df_filtrado = df_rojo.copy().drop(columns=["ORDEN"], errors="ignore")
+    # Base: todas las visitas de prioridad 4 y 5 (ya filtradas arriba)
+    df_filtrado = df_periodo.copy()
 
+    # 🔹 Aplicar filtro de tipo de visita
+    if filtro_alerta == "Ubicación no válida":
+        df_filtrado = df_filtrado[df_filtrado["ALERTA"].str.contains("no válida", case=False, na=False)]
+    elif filtro_alerta == "Ubicación válida":
+        df_filtrado = df_filtrado[df_filtrado["ALERTA"].str.contains("válida", case=False, na=False) & 
+                                  ~df_filtrado["ALERTA"].str.contains("no válida", case=False, na=False)]
+
+    # 🔹 Aplicar filtro por gestor
     if gestor_filter != "-- Todos --":
         df_filtrado = df_filtrado[df_filtrado["GEL"] == gestor_filter]
+
+    # 🔹 Filtro por código de hogar
     if hogar_filter:
         df_filtrado = df_filtrado[df_filtrado["CO_HOGAR"].astype(str).str.contains(hogar_filter.strip(), case=False, na=False)]
 
+    # 🔹 Eliminar duplicados: mismo hogar + misma fecha (mantiene 1 registro)
+    df_filtrado = df_filtrado.sort_values(by="DISTANCIA_KM", ascending=False)
+    df_filtrado = df_filtrado.drop_duplicates(subset=["CO_HOGAR", "FECHA_REGISTRO_ATENCION"], keep="first")
+
+    # 🔹 Seleccionar columnas (se reemplaza Priorización por UT)
     df_vista = df_filtrado[[
-        "CO_HOGAR", "GEL", "DISTRITO", "CENTRO_POBLADO",
-        "ESCALA_PRIORIZACION", "FECHA_REGISTRO_ATENCION",
-        "DISTANCIA_KM", "ALERTA"
-    ]].sort_values(by="DISTANCIA_KM", ascending=False)
+        "CO_HOGAR", "GEL", "UT", "DISTRITO", "CENTRO_POBLADO",
+        "FECHA_REGISTRO_ATENCION", "DISTANCIA_KM", "ALERTA"
+    ]].rename(columns={
+        "CO_HOGAR": "Código del Hogar",
+        "GEL": "Gestor Local",
+        "UT": "UT",
+        "DISTRITO": "Distrito",
+        "CENTRO_POBLADO": "Centro Poblado",
+        "FECHA_REGISTRO_ATENCION": "Fecha",
+        "DISTANCIA_KM": "Distancia (km)",
+        "ALERTA": "Alerta"
+    })
 
-    def color_dist(val):
-        try:
-            v = float(val)
-        except Exception:
-            return ""
-        if v >= 10: return "color:#B03A2E;font-weight:700;"
-        elif v >= 5: return "color:#D68910;font-weight:600;"
-        elif v >= 2: return "color:#CA6F1E;"
-        else: return "color:#196F3D;"
-
+    # 🔹 Mostrar tabla ordenada (sin color en distancia)
     st.dataframe(
         df_vista.reset_index(drop=True)
-        .rename(columns={
-            "CO_HOGAR": "Código del Hogar",
-            "GEL": "Gestor Local",
-            "DISTRITO": "Distrito",
-            "CENTRO_POBLADO": "Centro Poblado",
-            "ESCALA_PRIORIZACION": "Priorización",
-            "FECHA_REGISTRO_ATENCION": "Fecha",
-            "DISTANCIA_KM": "Distancia (km)",
-            "ALERTA": "Alerta"
-        })
         .style.format({
             "Distancia (km)": "{:.2f}",
             "Fecha": lambda x: x.strftime("%d/%m/%Y") if pd.notnull(x) else ""
-        })
-        .applymap(color_dist, subset=["Distancia (km)"]),
+        }),
         use_container_width=True,
-        height=480
+        height=500
     )
 
 # ======================================================
