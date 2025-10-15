@@ -23,22 +23,20 @@ COLOR_BORDE = "#E8EEF5"
 # ======================================================
 @st.cache_data(show_spinner=True)
 def cargar_datos():
-    ruta_archivo = os.path.join("data", "processed", "df_seguro.csv.gz")
+    ruta_archivo = "df_seguro.csv.gz"
 
-    # ✅ Spinner elegante (sin mensajes molestos)
     if not os.path.exists(ruta_archivo):
-        with st.spinner("Descargando y preparando los datos operativos..."):
-            os.makedirs(os.path.dirname(ruta_archivo), exist_ok=True)
-            file_id = "1WRIMoI4bHGfFMM616OpGvfvLTMWX59IT"
-            url = f"https://drive.google.com/uc?id={file_id}"
-            gdown.download(url, ruta_archivo, quiet=False)
+        st.error("❌ No se encontró el archivo df_seguro.csv.gz en el repositorio.")
+        st.stop()
 
-    df = pd.read_csv(ruta_archivo, compression="gzip")
+    with st.spinner("Cargando datos, por favor espera..."):
+        df = pd.read_csv(ruta_archivo, compression="gzip")
 
     df["CATEGORIA"] = df["CATEGORIA"].str.upper().str.strip()
     if not pd.api.types.is_datetime64_any_dtype(df["FECHA_REGISTRO_ATENCION"]):
         df["FECHA_REGISTRO_ATENCION"] = pd.to_datetime(df["FECHA_REGISTRO_ATENCION"], errors="coerce")
 
+    st.caption(f"✅ Datos cargados correctamente: {len(df):,} registros.")
     return df
 
 df = cargar_datos()
