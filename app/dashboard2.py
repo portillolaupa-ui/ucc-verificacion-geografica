@@ -382,7 +382,8 @@ gestores_evaluados = df_periodo["GEL"].nunique()
 # ======================================================
 
 towrite = io.BytesIO()
-with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
+#with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
+with pd.ExcelWriter(towrite, engine="openpyxl") as writer:
     cols_listado = [
         "UT", "DISTRITO", "CENTRO_POBLADO", "CO_HOGAR",
         "GEL", "ESCALA_PRIORIZACION", "FECHA_REGISTRO_ATENCION",
