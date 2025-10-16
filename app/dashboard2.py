@@ -173,19 +173,19 @@ if len(df_periodo) > 0:
 
     # Clasificación de riesgo
     if len(gestores_critico) > 0:
-        texto_riesgo = f"🔴 **{len(gestores_critico)} gestores locales** registran más del **70 %** de sus visitas fuera del rango permitido (**riesgo crítico**)."
+        texto_riesgo = f"🔴 **{len(gestores_critico)} gestores locales** tienen más del **70 %** de sus visitas fuera del rango permitido (**riesgo crítico**)."
         color_fondo = "#FDEDEC"; color_borde = "#E74C3C"
     elif len(gestores_alto) > 0:
-        texto_riesgo = f"🟠 **{len(gestores_alto)} gestores locales** presentan entre **50 % y 70 %** (**riesgo alto**)."
+        texto_riesgo = f"🟠 **{len(gestores_alto)} gestores locales** tienen entre **50 % y 70 %** de sus visitas fuera del rango permitido (**riesgo alto**)."
         color_fondo = "#FEF5E7"; color_borde = "#F39C12"
     elif len(gestores_medio) > 0:
-        texto_riesgo = f"🟡 **{len(gestores_medio)} gestores locales** tienen entre **30 % y 50 %** (**riesgo medio**)."
+        texto_riesgo = f"🟡 **{len(gestores_medio)} gestores locales** tienen entre **30 % y 50 %** de sus visitas fuera del rango permitido (**riesgo medio**)."
         color_fondo = "#FCF3CF"; color_borde = "#F1C40F"
     else:
         texto_riesgo = "🟢 No se registran gestores con niveles altos o críticos. La mayoría presenta un **nivel de riesgo bajo**."
         color_fondo = "#E8F8F5"; color_borde = "#1ABC9C"
 
-    texto_final = f"📊 *Basado en {total_visitas:,} visitas priorizadas (niveles 4 y 5).*"
+    texto_final = f"📊 *Basado en {total_visitas:,} visitas priorizadas (4 y 5).*"
 
     # 💬 Tarjeta visual idéntica al diseño original
     st.markdown(f"""
@@ -237,7 +237,7 @@ with c1:
 with c2:
     st.markdown(kpi_html("🟢", "Visitas con ubicación válida", total_valida, "#1E8449"), unsafe_allow_html=True)
 with c3:
-    st.markdown(kpi_html("👥", "Gestores evaluados (niveles 4 y 5)", gestores_evaluados, "#2E4053"), unsafe_allow_html=True)
+    st.markdown(kpi_html("👥", "Gestores evaluados (prioridad 4 y 5)", gestores_evaluados, "#2E4053"), unsafe_allow_html=True)
     
 # ======================================================
 # 👥 GESTORES CON MAYOR INCIDENCIA
@@ -299,52 +299,121 @@ if len(df_periodo) > 0:
                  "Visitas fuera de ubicación": "{:,.0f}"}),
         use_container_width=True
     )
+
+    # 🧭 Leyenda de clasificación (solo si hay registros)
+    if not ranking.empty:
+        st.markdown("""
+        <div style='border:1px solid #D6DBDF;border-radius:6px;
+                    padding:8px 12px;margin-top:6px;
+                    font-size:12.8px;line-height:1.5;
+                    background-color:#F8F9F9;width:98%;'>
+            <b>Leyenda de clasificación:</b><br>
+            🔴 <b>Crítico</b> ≥ 70% &nbsp;&nbsp;|&nbsp;&nbsp;
+            🟠 <b>Alto</b> 50–69% &nbsp;&nbsp;|&nbsp;&nbsp;
+            🟡 <b>Medio</b> 30–49% &nbsp;&nbsp;|&nbsp;&nbsp;
+            🟢 <b>Bajo</b> &lt; 30%<br>
+            <span style='color:gray;'>Clasificación basada en el porcentaje de visitas registradas fuera del rango territorial permitido.</span>
+        </div>
+        """, unsafe_allow_html=True)
+
 else:
     ranking = pd.DataFrame()
-    st.info("No hay registros disponibles para el periodo seleccionado.")
-    
+    st.info("No hay registros disponibles para el periodo seleccionado.")    
+
 # ======================================================
 # 🏠 REGISTROS DE VISITAS
 # ======================================================
 st.markdown("---")
 st.subheader("🏠 Registros de visitas domiciliarias")
-st.caption("ℹ️ Incluye todas las visitas (válidas y no válidas) de prioridad 4 y 5, con opción para filtrar los casos fuera de ubicación.")
+st.caption("ℹ️ Muestra el detalle de las visitas domiciliarias, correspondiente a los hogares con prioridad 4 y 5.")
 
-if df_periodo.empty:
-    st.info("No se registran visitas en el periodo seleccionado.")
+if df.empty:
+    st.info("No hay datos disponibles.")
 else:
-    # ✅ Filtro tipo selectbox: todas / válidas / no válidas
-    colf1, colf2, colf3 = st.columns([1.1, 1.1, 1])
-    with colf1:
+    # 🔹 Filtros dentro de la tabla
+    colp, col1, col2, col3 = st.columns([1.3, 1.1, 1.1, 1])
+
+    # Opciones de periodo: primero 'ver todo el año' y luego todos los periodos
+    opciones_periodo = ["Ver todas las visitas del año"] + list(PERIODOS.keys())
+    # Preseleccionar el mismo periodo que arriba
+    idx_default = opciones_periodo.index(periodo_sel) if periodo_sel in opciones_periodo else 0
+
+    with colp:
+        periodo_tabla = st.selectbox(
+            "📆 Periodo operativo",
+            opciones_periodo,
+            index=idx_default
+        )
+
+    with col1:
         filtro_alerta = st.selectbox("📍 Tipo de visita", ["Todas", "Ubicación válida", "Ubicación no válida"])
-    with colf2:
-        gestor_filter = st.selectbox("👤 Filtrar por Gestor Local", ["-- Todos --"] + sorted(df_periodo["GEL"].unique()))
-    with colf3:
+
+    with col2:
+        # Lista de gestores dependiente de UT y Distrito seleccionados arriba
+        if ut_sel != "-- Todas --" and dist_sel != "-- Todos --":
+            gestores_filtrados = sorted(df[(df["UT"] == ut_sel) & (df["DISTRITO"] == dist_sel)]["GEL"].unique())
+        elif ut_sel != "-- Todas --":
+            gestores_filtrados = sorted(df[df["UT"] == ut_sel]["GEL"].unique())
+        else:
+            gestores_filtrados = sorted(df["GEL"].unique())
+        gestor_filter = st.selectbox("👤 Filtrar por Gestor Local", ["-- Todos --"] + gestores_filtrados)
+
+    with col3:
         hogar_filter = st.text_input("🏠 Buscar por Código de Hogar:")
 
-    # Base: todas las visitas de prioridad 4 y 5 (ya filtradas arriba)
-    df_filtrado = df_periodo.copy()
+    # ======================================================
+    # 🔎 Base inicial según selección de periodo (abajo)
+    # ======================================================
+    if periodo_tabla == "Ver todas las visitas del año":
+        df_filtrado = df[df["ESCALA_PRIORIZACION"].isin([4, 5])].copy()
+    else:
+        fi_str, ff_str = PERIODOS[periodo_tabla]
+        fi, ff = pd.to_datetime(fi_str), pd.to_datetime(ff_str)
+        df_filtrado = df[
+            (df["FECHA_REGISTRO_ATENCION"] >= fi)
+            & (df["FECHA_REGISTRO_ATENCION"] <= ff)
+            & (df["ESCALA_PRIORIZACION"].isin([4, 5]))
+        ].copy()
 
-    # 🔹 Aplicar filtro de tipo de visita
+    # ======================================================
+    # ⚙️ Filtros adicionales (UT/Distrito superiores, hogar, gestor, alerta)
+    # ======================================================
+    # Asegurar columna ALERTA
+    if "ALERTA" not in df_filtrado.columns:
+        df_filtrado["DISTANCIA_KM"] = pd.to_numeric(df_filtrado["DISTANCIA_KM"], errors="coerce")
+        df_filtrado["ALERTA"] = df_filtrado.apply(marcar_alerta, axis=1).astype(str)
+
+    # Filtrar por UT/Distrito seleccionados arriba
+    if ut_sel != "-- Todas --":
+        df_filtrado = df_filtrado[df_filtrado["UT"] == ut_sel]
+    if dist_sel != "-- Todos --":
+        df_filtrado = df_filtrado[df_filtrado["DISTRITO"] == dist_sel]
+
+    # Filtro por hogar
+    if hogar_filter.strip():
+        df_filtrado = df_filtrado[
+            df_filtrado["CO_HOGAR"].astype(str).str.contains(hogar_filter.strip(), case=False, na=False)
+        ]
+
+    # Filtro por tipo de visita
     if filtro_alerta == "Ubicación no válida":
         df_filtrado = df_filtrado[df_filtrado["ALERTA"].str.contains("no válida", case=False, na=False)]
     elif filtro_alerta == "Ubicación válida":
-        df_filtrado = df_filtrado[df_filtrado["ALERTA"].str.contains("válida", case=False, na=False) & 
-                                  ~df_filtrado["ALERTA"].str.contains("no válida", case=False, na=False)]
+        df_filtrado = df_filtrado[
+            df_filtrado["ALERTA"].str.contains("válida", case=False, na=False)
+            & ~df_filtrado["ALERTA"].str.contains("no válida", case=False, na=False)
+        ]
 
-    # 🔹 Aplicar filtro por gestor
+    # Filtro por gestor local
     if gestor_filter != "-- Todos --":
         df_filtrado = df_filtrado[df_filtrado["GEL"] == gestor_filter]
 
-    # 🔹 Filtro por código de hogar
-    if hogar_filter:
-        df_filtrado = df_filtrado[df_filtrado["CO_HOGAR"].astype(str).str.contains(hogar_filter.strip(), case=False, na=False)]
-
-    # 🔹 Eliminar duplicados: mismo hogar + misma fecha (mantiene 1 registro)
+    # ======================================================
+    # 🧹 Limpieza y formato
+    # ======================================================
     df_filtrado = df_filtrado.sort_values(by="DISTANCIA_KM", ascending=False)
     df_filtrado = df_filtrado.drop_duplicates(subset=["CO_HOGAR", "FECHA_REGISTRO_ATENCION"], keep="first")
 
-    # 🔹 Seleccionar columnas (se reemplaza Priorización por UT)
     df_vista = df_filtrado[[
         "CO_HOGAR", "GEL", "UT", "DISTRITO", "CENTRO_POBLADO",
         "FECHA_REGISTRO_ATENCION", "DISTANCIA_KM", "ALERTA"
@@ -359,7 +428,10 @@ else:
         "ALERTA": "Alerta"
     })
 
-    # 🔹 Mostrar tabla ordenada (sin color en distancia)
+    # Etiqueta informativa
+    st.markdown(f"🔹 <b>Total: {len(df_vista):,} registros filtrados</b>", unsafe_allow_html=True)
+
+    # Mostrar tabla
     st.dataframe(
         df_vista.reset_index(drop=True)
         .style.format({
