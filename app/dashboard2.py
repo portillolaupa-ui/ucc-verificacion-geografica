@@ -445,69 +445,69 @@ else:
 # ======================================================
 # 🔁 Variables para exportación (coherentes con las tarjetas actuales)
 # ======================================================
-total_no_valida = len(df_rojo)
-total_valida = len(df_periodo) - total_no_valida
-gestores_evaluados = df_periodo["GEL"].nunique()
+#total_no_valida = len(df_rojo)
+#total_valida = len(df_periodo) - total_no_valida
+#gestores_evaluados = df_periodo["GEL"].nunique()
 
 # ======================================================
 # 💾 EXPORTACIÓN Y DESCARGA EN EXCEL (único botón)
 # ======================================================
 
-towrite = io.BytesIO()
+#towrite = io.BytesIO()
 #with pd.ExcelWriter(towrite, engine="xlsxwriter") as writer:
-with pd.ExcelWriter(towrite, engine="openpyxl") as writer:
-    cols_listado = [
-        "UT", "DISTRITO", "CENTRO_POBLADO", "CO_HOGAR",
-        "GEL", "ESCALA_PRIORIZACION", "FECHA_REGISTRO_ATENCION",
-        "DISTANCIA_KM", "ALERTA"
-    ]
-    df_out = df_rojo[cols_listado].copy()
-    df_out.to_excel(writer, index=False, sheet_name="Casos_Criticos")
+#with pd.ExcelWriter(towrite, engine="openpyxl") as writer:
+    #cols_listado = [
+        #"UT", "DISTRITO", "CENTRO_POBLADO", "CO_HOGAR",
+        #"GEL", "ESCALA_PRIORIZACION", "FECHA_REGISTRO_ATENCION",
+        #"DISTANCIA_KM", "ALERTA"
+    #]
+    #df_out = df_rojo[cols_listado].copy()
+    #df_out.to_excel(writer, index=False, sheet_name="Casos_Criticos")
 
     # 📘 Resumen (coherente con las tarjetas actuales)
-    resumen = pd.DataFrame({
-        "Indicador": [
-            "Periodo operativo", "Fecha inicio", "Fecha fin",
-            "Visitas con ubicación no válida",
-            "Visitas con ubicación válida",
-            "Total de gestores evaluados"
-        ],
-        "Valor": [
-            periodo_sel,
-            fecha_inicio.strftime("%d/%m/%Y"),
-            fecha_fin.strftime("%d/%m/%Y"),
-            total_no_valida,
-            total_valida,
-            gestores_evaluados
-        ]
-    })
-    resumen.to_excel(writer, index=False, sheet_name="Resumen")
+    #resumen = pd.DataFrame({
+        #"Indicador": [
+            #"Periodo operativo", "Fecha inicio", "Fecha fin",
+            #"Visitas con ubicación no válida",
+            #"Visitas con ubicación válida",
+            #"Total de gestores evaluados"
+        #],
+        #"Valor": [
+            #periodo_sel,
+            #fecha_inicio.strftime("%d/%m/%Y"),
+            #fecha_fin.strftime("%d/%m/%Y"),
+            #total_no_valida,
+            #total_valida,
+            #gestores_evaluados
+        #]
+    #})
+    #resumen.to_excel(writer, index=False, sheet_name="Resumen")
 
     # 📙 Ranking de gestores
-    (ranking if not ranking.empty else pd.DataFrame(
-        columns=["Gestor Local","UT","Distrito",
-                 "Total visitas (pri 4-5)",
-                 "Visitas fuera de ubicación","% fuera de ubicación"])
-    ).to_excel(writer, index=False, sheet_name="Ranking_Gestores")
+    #(ranking if not ranking.empty else pd.DataFrame(
+        #columns=["Gestor Local","UT","Distrito",
+                 #"Total visitas (pri 4-5)",
+                 #"Visitas fuera de ubicación","% fuera de ubicación"])
+    #).to_excel(writer, index=False, sheet_name="Ranking_Gestores")
 
-towrite.seek(0)
-b64_excel = base64.b64encode(towrite.read()).decode()
-file_name_excel = f"verificacion_geografica_{periodo_sel}.xlsx"
+#towrite.seek(0)
+#b64_excel = base64.b64encode(towrite.read()).decode()
+#file_name_excel = f"verificacion_geografica_{periodo_sel}.xlsx"
 
 # --- 📊 Botón de descarga
-st.markdown(
-    f"""
-    <div style='text-align:center;margin-top:15px;margin-bottom:30px;'>
-        <a href="data:application/octet-stream;base64,{b64_excel}" download="{file_name_excel}"
-        style='background-color:#004C97;color:white;padding:12px 25px;
-        border-radius:8px;text-decoration:none;font-weight:600;
-        font-size:15px;display:inline-block;'>
-        📊 Descargar reporte operativo (3 hojas)
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+#st.markdown(
+    #f"""
+    #<div style='text-align:center;margin-top:15px;margin-bottom:30px;'>
+        #<a href="data:application/octet-stream;base64,{b64_excel}" download="{file_name_excel}"
+        #style='background-color:#004C97;color:white;padding:12px 25px;
+        #border-radius:8px;text-decoration:none;font-weight:600;
+        #font-size:15px;display:inline-block;'>
+        #📊 Descargar reporte operativo (3 hojas)
+        #</a>
+    #</div>
+    #""",
+    #unsafe_allow_html=True
+#)
 
 # ======================================================
 # 📌 PIE DE NOTA INSTITUCIONAL
