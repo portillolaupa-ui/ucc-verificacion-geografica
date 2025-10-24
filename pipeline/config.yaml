@@ -1,0 +1,59 @@
+# === RUTAS DE ENTRADA ===
+paths:
+  df_primero: "data/raw/Data_Acompanamiento_2025_ENE_ABRIL.xlsx"
+  df_segundo: "data/raw/Data_Acompanamiento_2025_MAY_AGO.xlsx"
+  df_setiembre: "data/raw/Data_Acompanamiento_2025_SET.xlsx"
+  df_octubre: "data/raw/Data_Acompanamiento_2025_OCT_CIERRE_21.xlsx"
+  maestro_hogares: "data/raw/HOGARESGEO_25092025.xlsx"
+
+# === UMBRALES TERRITORIALES ===
+territorial_rules:
+  thresholds_km:
+    URBANO: 0.5
+    ANDINO: 2
+    AMAZONICO: 5
+
+  ut_category_map:
+    URBANO:
+      - LIMA
+      - LA LIBERTAD
+      - LAMBAYEQUE
+      - ICA
+      - TACNA
+      - MOQUEGUA
+      - TUMBES
+      - PIURA
+    ANDINO:
+      - CAJAMARCA
+      - ANCASH
+      - HUANCAVELICA
+      - SAN MARTIN
+      - AYACUCHO
+      - CUSCO
+      - JUNIN
+      - APURIMAC
+      - PUNO
+      - PASCO
+      - AREQUIPA
+    AMAZONICO:
+      - LORETO - IQUITOS
+      - UCAYALI
+      - LORETO - YURIMAGUAS
+      - AMAZONAS - CONDORCANQUI
+      - AMAZONAS - BAGUA
+      - MADRE DE DIOS
+
+# === CLASIFICACIÓN DE RIESGO DE GESTORES ===
+risk_levels:
+  bajo: [0, 29.99]
+  medio: [30, 49.99]
+  alto: [50, 69.99]
+  critico: [70, 100]
+  min_visitas: 5  # mínimo de visitas para calcular % de riesgo
+
+# === PARÁMETROS DE AUDITORÍA ===
+audit:
+  out_dir: "audit" #carpeta donde se guardarán los logs y métricas.
+  save_exclusions: true #guardar o no los registros filtrados.
+  save_hashes: true #crear huellas SHA256 de cada archivo.
+  save_metrics: true #exportar un resumen en JSON con métricas de calidad.

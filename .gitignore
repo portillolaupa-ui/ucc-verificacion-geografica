@@ -5,8 +5,14 @@
 *.sav
 *.json
 *.zip
-__pycache__/
-.venv/
+*.db
+
 venv/
-.env
+
 .DS_Store
+Thumbs.db
+
+__pycache__/
+*.pyc
+*.pyo
+*.log

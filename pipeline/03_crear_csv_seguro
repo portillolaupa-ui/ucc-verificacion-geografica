@@ -1,9 +1,0 @@
-import pandas as pd
-
-# Carga tu pkl
-df = pd.read_pickle("data/processed (data limpia, lista para análisis)/df_seguro.pkl")
-
-# Exporta a CSV comprimido (mucho más liviano)
-df.to_csv("df_seguro.csv.gz", index=False, compression="gzip")
-
-print("✅ Archivo CSV comprimido creado correctamente.")
